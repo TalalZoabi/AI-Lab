@@ -1,0 +1,6 @@
+numba==0.59.1
+numpy==1.26.4
+matplotlib==3.9.0
+llvmlite==0.42.0
+pandas==2.2.2
+plotly==5.22.0
