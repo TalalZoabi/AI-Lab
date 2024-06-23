@@ -80,4 +80,6 @@ class GeneticAlgorithm:
         min_fitness = min(fitnesses)
         print(f"Generation {generation}: Mean Fitness = {mean_fitness}, Max Fitness = {max_fitness}, Min Fitness = {min_fitness}, Runtime = {runtime:.4f} seconds")
 
+    def get_results(self):
+        return self.data_collector.get_data()
 

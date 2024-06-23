@@ -52,6 +52,19 @@ class DataCollector:
             if fitness_improvement < self.convergence_threshold:
                 self.convergence_generation = len(self.fitness_matrix) - self.convergence_window
 
+    def get_data(self):
+        self.calculate_statistics()
+        return {
+            'avg_fitnesses': self.avg_fitnesses,
+            'scaled_avg_fitnesses': self.scaled_avg_fitnesses,
+            'std_devs': self.std_devs,
+            'best_fitnesses': self.best_fitnesses,
+            'runtimes': self.runtimes,
+            'diversities': self.diversities,
+            'convergence_generation': self.convergence_generation
+        }
+
+
     def plot(self):
         self.calculate_statistics()
         generations = range(len(self.avg_fitnesses))

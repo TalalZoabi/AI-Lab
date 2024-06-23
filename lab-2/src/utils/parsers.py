@@ -46,3 +46,7 @@ def parse_sudoku_configurations(file_path):
                     configurations.append(current_board)
                     current_board = []
     return configurations
+
+
+
+
