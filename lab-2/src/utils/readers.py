@@ -19,6 +19,9 @@ from ..modules.LinearScaling import ConstantLinearScaling, DynamicLinearScaling
 from ..modules.ParentSelectionMethod import RWSLinearScaling, SUSLinearScaling, RWSRankingSelection, TournamentSelection
 from ..modules.SurvivorSelectionMethod import ElitismSelection, TournamentSelection as survivor_tournament_selection, AgingSelection
 from ..modules.MutationStrategy import BasicMutation, NonUniformMutation, AdaptiveMutation, TriggeredHyperMutation, SelfAdaptiveMutation
+from ..modules.FitnessSharing import BasicFitnessSharing
+from ..modules.Speciation import ThresholdSpeciation, KMeansSpeciation, SilhouetteKMeansSpeciation
+from ..modules.Crowding import DeterministicCrowding, NonDeterministicCrowding
 
 from .parsers import parse_bin_packing_config, parse_sudoku_configurations
 
@@ -414,6 +417,71 @@ def read_problem(config):
     else:
         raise ValueError("Invalid problem type")
 
+
+def read_fitness_sharing(config):
+    if 'fitness_sharing_type' not in config:
+        config['fitness_sharing_type'] = input("Enter fitness sharing type (1: basic): ")
+    
+    if config['fitness_sharing_type'] == '1':  # basic
+        if 'sigma_share' not in config:
+            config['sigma_share'] = float(input("Enter sigma_share for basic fitness sharing: "))
+        if 'distance_func' not in config:
+            config['distance_func'] = input("Enter distance function for basic fitness sharing: ")
+        if 'alpha' not in config:
+            config['alpha'] = float(input("Enter alpha for basic fitness sharing (default 1.0): ") or 1.0)
+        return BasicFitnessSharing(config['sigma_share'], config['distance_func'], config['alpha'])
+    else:
+        raise ValueError(f"Unknown fitness sharing type: {config['fitness_sharing_type']}")
+
+
+def read_speciation(config):
+    if 'speciation_type' not in config:
+        config['speciation_type'] = input("Enter speciation type (1: threshold 2: k-means 3: silhouette k-means): ")
+
+    if config['speciation_type'] == '1':  # Threshold
+        if 'similarity_threshold' not in config:
+            config['similarity_threshold'] = float(input("Enter similarity threshold for threshold speciation: "))
+        
+        return ThresholdSpeciation(config['similarity_threshold'], config['distance_func'])
+
+    elif config['speciation_type'] == '2':  # K-Means
+        if 'num_clusters' not in config:
+            config['num_clusters'] = int(input("Enter the number of clusters for K-Means speciation: "))
+        return KMeansSpeciation(config['num_clusters'], config['distance_func'])
+
+    elif config['speciation_type'] == '3':  # Silhouette K-Means
+        if 'min_clusters' not in config:
+            config['min_clusters'] = int(input("Enter the minimum number of clusters for Silhouette K-Means speciation: "))
+        if 'max_clusters' not in config:
+            config['max_clusters'] = int(input("Enter the maximum number of clusters for Silhouette K-Means speciation: "))
+        
+        return SilhouetteKMeansSpeciation(config['min_clusters'], config['max_clusters'], config['distance_func'])
+
+    else:
+        raise ValueError(f"Unknown speciation type: {config['speciation_type']}")
+
+
+
+
+
+def read_crowding(config):
+    if 'crowding_type' not in config:
+        config['crowding_type'] = input("Enter crowding type (1: deterministic, 2: non_deterministic): ")
+    
+    if config['crowding_type'] == '1':  # deterministic
+        if 'distance_func' not in config:
+            config['distance_func'] = input("Enter distance function for deterministic crowding: ")
+        return DeterministicCrowding(config['distance_func'])
+    elif config['crowding_type'] == '2':  # non_deterministic
+        if 'distance_func' not in config:
+            config['distance_func'] = input("Enter distance function for non-deterministic crowding: ")
+        return NonDeterministicCrowding(config['distance_func'])
+    else:
+        raise ValueError(f"Unknown crowding type: {config['crowding_type']}")
+
+
+
+
 def read_config(config):
     if "problem_type" not in config:
         problem_type = input("Enter the problem type (1: String Matching, 2: Sudoku, 3: Bin Packing): ")
@@ -435,6 +503,9 @@ def read_config(config):
     config['mutation_strategy'] = read_mutation_strategy(config)
     config['survivor_selection'] = read_survivor_selection(config)
     config['data_collector'] = read_data_collector(config)
+    config['fitness_sharing'] = read_fitness_sharing(config)
+    config['speciation'] = read_speciation(config)
+    config['crowding'] = read_crowding(config)
 
     if 'population_size' not in config:
         population_size = input("Enter the population size (default 100): ")

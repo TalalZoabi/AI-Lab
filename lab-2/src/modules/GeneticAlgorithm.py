@@ -22,6 +22,12 @@ class GeneticAlgorithm:
         self.plot_results = config['plot_results']
         self.terminal_log = config['terminal_log']
 
+        # Integrate FitnessSharing, Speciation, and Crowding
+        self.fitness_sharing = config['fitness_sharing']
+        self.speciation = config['speciation']
+        self.crowding = config['crowding']
+
+
     def run(self):
         # Initialize population
         population = self.initialize_population(self.population_size)
@@ -31,56 +37,70 @@ class GeneticAlgorithm:
             start_time = time.time()
             fitnesses = [self.fitness_function.evaluate(ind) for ind in population]
             
-            # Parent selection
-            parents = self.parent_selection.select(population, fitnesses, self.population_size)
+            # Apply fitness sharing
+            shared_fitness = self.fitness_sharing.apply_sharing(population, fitnesses)
             
-            # Crossover
-            offspring = []
-            for i in range(0, self.population_size, 2):
-                parent1 = parents[i]
-                parent2 = parents[(i+1) % self.population_size]
-                offspring.extend(self.crossover_operator.crossover(parent1, parent2))
+            # Perform speciation
+            species = self.speciation.threshold_speciation(population)
             
-            # Mutation
-            config = {'generation': generation}
-            offspring = self.mutate(offspring, config)
-            
+            new_population = population
+            new_ages = ages
+            for spec in species:
+                sub_population = [population[i] for i in spec]
+                sub_fitness = [shared_fitness[i] for i in spec]
+                
+                # Parent selection within species
+                parents = self.parent_selection.select(sub_population, sub_fitness, len(sub_population))
+                
+                # Crossover and mutation
+                offspring = []
+                for i in range(0, len(parents), 2):
+                    parent1 = parents[i]
+                    parent2 = parents[(i + 1) % len(parents)]
+                    offspring.extend(self.crossover_operator.crossover(parent1, parent2))
+                offspring = self.mutate(offspring, {'generation': generation})
+                
+                # Evaluate offspring fitnesses
+                offspring_fitnesses = [self.fitness_function.evaluate(ind) for ind in offspring]
 
-            # Evaluate fitness
-            fitnesses.extend([self.fitness_function.evaluate(ind) for ind in offspring])
-            
-            population.extend(offspring)
+                # Apply crowding
+                sub_population.extend(offspring)
+                sub_fitness.extend(offspring_fitnesses)
+                new_sub_population = self.crowding.apply_crowding(offspring, sub_population, sub_fitness)
+                
+                new_population.extend(new_sub_population)
+                new_ages.extend([0] * len(new_sub_population))  # Reset ages for new individuals
+
+            # Survivor selection
+            population, ages = self.survivor_selection.select(new_population, [self.fitness_function.evaluate(ind) for ind in new_population], self.population_size, new_ages)
 
             # Update best individual
+            fitnesses = [self.fitness_function.evaluate(ind) for ind in population]
             best_fitness = max(fitnesses)
             best_individual = population[fitnesses.index(best_fitness)]
             if best_fitness > self.best_lifetime_fitness:
                 self.best_lifetime_fitness = best_fitness
                 self.best_lifetime_individual = best_individual
-            
-
-
-            # Survivor selection
-            population, ages = self.survivor_selection.select(population, fitnesses, self.population_size, ages)
-            
 
             # Collect and report data
             end_time = time.time()
             self.collect_statistics(fitnesses, generation, end_time - start_time)
-            
             self.data_collector.collect(fitnesses, end_time - start_time, population)
         
-        # return best individual
+        # Return best individual
         fitnesses = [self.fitness_function.evaluate(ind) for ind in population]
-        best_individual = population[fitnesses.index(best_fitness)]
+        best_individual = population[fitnesses.index(max(fitnesses))]
         
         if self.plot_results:
             self.data_collector.plot()
             self.problem.display_individual(best_individual, "Best Individual")
             self.problem.display_individual(self.best_lifetime_individual, "Best Lifetime Individual")
 
-
         return best_individual
+
+
+
+
 
     def collect_statistics(self, fitnesses, generation, runtime):
         mean_fitness = sum(fitnesses) / len(fitnesses)
