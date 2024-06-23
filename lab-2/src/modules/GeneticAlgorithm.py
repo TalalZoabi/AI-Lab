@@ -18,6 +18,9 @@ class GeneticAlgorithm:
 
         self.best_lifetime_individual = None
         self.best_lifetime_fitness = float('-inf')
+        
+        self.plot_results = config['plot_results']
+        self.terminal_log = config['terminal_log']
 
     def run(self):
         # Initialize population
@@ -39,9 +42,10 @@ class GeneticAlgorithm:
                 offspring.extend(self.crossover_operator.crossover(parent1, parent2))
             
             # Mutation
-            mutation_config = {}
-            offspring = [self.mutation_operator.mutate(ind) if self.mutation_strategy.should_mutate(mutation_config) else ind for ind in offspring]
+            config = {'generation': generation}
+            offspring = self.mutate(offspring, config)
             
+
             # Evaluate fitness
             fitnesses.extend([self.fitness_function.evaluate(ind) for ind in offspring])
             
@@ -69,16 +73,41 @@ class GeneticAlgorithm:
         # return best individual
         fitnesses = [self.fitness_function.evaluate(ind) for ind in population]
         best_individual = population[fitnesses.index(best_fitness)]
-        self.data_collector.plot()
-        self.problem.display_individual(best_individual, "Best Individual")
-        self.problem.display_individual(self.best_lifetime_individual, "Best Lifetime Individual")
+        
+        if self.plot_results:
+            self.data_collector.plot()
+            self.problem.display_individual(best_individual, "Best Individual")
+            self.problem.display_individual(self.best_lifetime_individual, "Best Lifetime Individual")
+
+
         return best_individual
 
     def collect_statistics(self, fitnesses, generation, runtime):
         mean_fitness = sum(fitnesses) / len(fitnesses)
         max_fitness = max(fitnesses)
         min_fitness = min(fitnesses)
-        print(f"Generation {generation}: Mean Fitness = {mean_fitness}, Max Fitness = {max_fitness}, Min Fitness = {min_fitness}, Runtime = {runtime:.4f} seconds")
+
+        if self.terminal_log:
+            print(f"Generation {generation}: Mean Fitness = {mean_fitness}, Max Fitness = {max_fitness}, Min Fitness = {min_fitness}, Runtime = {runtime:.4f} seconds")
+
+    def mutate(self, offspring, config):
+        offspring_fitnesses = [self.fitness_function.evaluate(ind) for ind in offspring]
+        config['min_fitness'] = self.fitness_function.min_fitness()
+        config['max_fitness'] = self.fitness_function.max_fitness()
+        config['best_fitness'] = max(offspring_fitnesses)
+        config['avg_fitness'] = sum(offspring_fitnesses) / len(offspring_fitnesses)
+
+        mutated_offspring = []
+
+        for i, ind in enumerate(offspring):
+            config['individual_fitness'] = offspring_fitnesses[i]
+            if self.mutation_strategy.should_mutate(config):
+                mutated_offspring.append(self.mutation_operator.mutate(ind))
+            else:
+                mutated_offspring.append(ind)
+
+        return mutated_offspring
+
 
     def get_results(self):
         return self.data_collector.get_data()

@@ -54,6 +54,8 @@ class DataCollector:
 
     def get_data(self):
         self.calculate_statistics()
+        if not self.convergence_generation:
+            self.convergence_generation = len(self.fitness_matrix)
         return {
             'avg_fitnesses': self.avg_fitnesses,
             'scaled_avg_fitnesses': self.scaled_avg_fitnesses,

@@ -18,7 +18,7 @@ from ..modules.MutationOperator import SwapMutation\
 from ..modules.LinearScaling import ConstantLinearScaling, DynamicLinearScaling
 from ..modules.ParentSelectionMethod import RWSLinearScaling, SUSLinearScaling, RWSRankingSelection, TournamentSelection
 from ..modules.SurvivorSelectionMethod import ElitismSelection, TournamentSelection as survivor_tournament_selection, AgingSelection
-
+from ..modules.MutationStrategy import BasicMutation, NonUniformMutation, AdaptiveMutation, TriggeredHyperMutation, SelfAdaptiveMutation
 
 from .parsers import parse_bin_packing_config, parse_sudoku_configurations
 
@@ -48,10 +48,6 @@ def read_crossover(config):
         return SudokuPMXCrossover(config['fixed_positions'])
     
     return BinPackingPMXCrossover()
-
-
-
-
 
 def read_data_collector(config):
     global_min_fitness = config['fitness_function'].min_fitness()
@@ -135,62 +131,118 @@ def read_fitness_function(config):
     else:
         raise ValueError("Invalid problem type specified.")
 
-
-# TODO: change it to integrate mutatioon strategy and mutation operator
-def read_mutation(config):
-    mutation_rate = input("Enter the mutation rate (default 0.01): ")
-    if not mutation_rate:
-        mutation_rate = 0.01
-    else:
-        mutation_rate = float(mutation_rate)
-
-    config['mutation_rate'] = mutation_rate
-
+def read_mutation_operator(config):
     if config['problem_type'] == 'string_matching':
-        mutation_type = input("Enter the mutation type (1: Swap 2. Inversion 3. Single Point ): ")
-        if mutation_type == '1':
+        if 'mutation_operator_type' not in config:
+            mutation_operator_type = input("Enter the mutation operator type (1: Swap 2. Inversion 3. Single Point ): ")
+        else:
+            mutation_operator_type = config['mutation_operator_type']
+        
+        if mutation_operator_type == '1':
             return SwapMutation()
-        elif mutation_type == '2':
+        elif mutation_operator_type == '2':
             return InversionMutation()
-        elif mutation_type == '3':
+        elif mutation_operator_type == '3':
             return SinglePointMutation()
         else:
             raise ValueError("Invalid mutation type specified.")
     
     elif config['problem_type'] == 'sudoku':
-        mutation_type = input("Enter the mutation type: \n1. Sudoku Swap\n2. Sudoku Inversion\n3. Sudoku Scramble\n4. Sudoku Row Column Swap\n5. Sudoku Random Resetting\n6. SudokuDisplacement\n: ")
-        if mutation_type == '1':
+        if 'mutation_operator_type' not in config:
+            mutation_operator_type = input("Enter the mutation type: \n1. Sudoku Swap\n2. Sudoku Inversion\n3. Sudoku Scramble\n4. Sudoku Row Column Swap\n5. Sudoku Random Resetting\n6. SudokuDisplacement\n: ")
+        else:
+            mutation_operator_type = config['mutation_operator_type']
+
+        if mutation_operator_type == '1':
             return SudokuSwapMutation(config['fixed_positions'])
-        elif mutation_type == '2':
+        elif mutation_operator_type == '2':
             return SudokuInversionMutation(config['fixed_positions'])
-        elif mutation_type == '3':
+        elif mutation_operator_type == '3':
             return SudokuScrambleMutation(config['fixed_positions'])
-        elif mutation_type == '4':
+        elif mutation_operator_type == '4':
             return SudokuRowColumnSwapMutation(config['fixed_positions'])
-        elif mutation_type == '5':
+        elif mutation_operator_type == '5':
             return SudokuRandomResettingMutation(config['fixed_positions'])
-        elif mutation_type == '6':
+        elif mutation_operator_type == '6':
             return SudokuDisplacementMutation(config['fixed_positions'])
         else:
             raise ValueError("Invalid mutation type specified.")
     
     elif config['problem_type'] == 'bin_packing':
-        mutation_type = input("Enter the mutation type: \n1: Swap\n2. Inversion\n3. Bin Packing Swap\n4. Bin Packing Inversion\n5. Bin Packing Scramble\n 6. Bin Packing Insertion\n: ")
-        if mutation_type == '1':
+        if 'mutation_operator_type' not in config:
+            mutation_operator_type = input("Enter the mutation type: \n1: Swap\n2. Inversion\n3. Bin Packing Swap\n4. Bin Packing Inversion\n5. Bin Packing Scramble\n 6. Bin Packing Insertion\n: ")
+        else:
+            mutation_operator_type = config['mutation_operator_type']
+        
+        if mutation_operator_type == '1':
             return SwapMutation()
-        elif mutation_type == '2':
+        elif mutation_operator_type == '2':
             return InversionMutation()
-        elif mutation_type == '3':
+        elif mutation_operator_type == '3':
             return BinPackingSwapMutation()
-        elif mutation_type == '4':
+        elif mutation_operator_type == '4':
             return BinPackingInversionMutation()
-        elif mutation_type == '5':
+        elif mutation_operator_type == '5':
             return BinPackingScrambleMutation()
-        elif mutation_type == '6':
+        elif mutation_operator_type == '6':
             return BinPackingInsertionMutation()
         else:
             raise ValueError("Invalid mutation type specified.")
 
+def read_mutation_strategy(config):
+    if 'mutation_strategy' not in config:
+          mutation_strategy = input("Enter mutation strategy: \n1. BasicMutation\n2. NonUniformMutation\n3. AdaptiveMutation\n4. TriggeredHyperMutation\n5. SelfAdaptiveMutation\n: ").strip()
+    else:
+        mutation_strategy = config['mutation_strategy']
+        
+    if mutation_strategy == '1':
+        if 'mutation_prob' not in config:
+            mutation_prob = float(input("Enter mutation probability: ").strip())
+        else:
+            mutation_prob = config['mutation_prob']    
+        return BasicMutation(mutation_prob)
+    
+    elif mutation_strategy == '2':
+        if 'mutation_initial_prob' not in config: 
+            mutation_initial_prob = float(input("Enter initial mutation probability: ").strip())
+        else:
+            mutation_initial_prob = config['mutation_initial_prob']
+        
+        if 'mutation_decay_rate' not in config:
+            mutation_decay_rate = float(input("Enter decay rate: ").strip())
+        else:
+            mutation_decay_rate = config['mutation_decay_rate']
+        return NonUniformMutation(mutation_initial_prob, mutation_decay_rate)
+    
+    elif mutation_strategy == '3':
+        if 'mutation_base_prob' not in config:
+            mutation_base_prob = float(input("Enter base mutation probability: ").strip())
+        else:
+            mutation_base_prob = config['mutation_base_prob']
+        return AdaptiveMutation(mutation_base_prob)  
+    
+    elif mutation_strategy == '4':
+        if 'mutation_base_prob' not in config:
+            mutation_base_prob = float(input("Enter base mutation probability: ").strip())
+        else:
+            mutation_base_prob = config['mutation_base_prob']
+        
+        if 'thm_threshold' not in config:
+            thm_threshold = float(input("Enter threshold: ").strip())
+        else:
+            thm_threshold = config['thm_threshold']
+        
+        if 'mutation_max_prob' not in config:
+            mutation_max_prob = float(input("Enter maximum mutation probability: ").strip())
+        else:
+            mutation_max_prob = config['mutation_max_prob']
+        
+        return TriggeredHyperMutation(mutation_base_prob, thm_threshold, mutation_max_prob)
+    
+    elif mutation_strategy == '5':
+        return SelfAdaptiveMutation()
+    else:
+        raise ValueError(f"Unknown mutation strategy: {mutation_strategy}")    
 
 def read_linear_scaling(config):
     if 'scaling_strategy' not in config:
@@ -271,12 +323,19 @@ def read_parent_selection(config):
         else:
             tournament_size = config['tournament_size']
 
-        return TournamentSelection(tournament_size)
+        if 'tournament_prob_best' not in config:
+            tournament_prob_best = input("Enter tournament best probability: (default 1): ")
+            if not tournament_prob_best:
+                tournament_prob_best = 1.0
+            else:
+                tournament_prob_best = float(tournament_prob_best)
+        else:
+            tournament_prob_best = config['tournament_prob_best']
+
+        return TournamentSelection(tournament_size, tournament_prob_best)
 
     else:
         raise ValueError("Invalid parent selection method specified.")
-
-
 
 def read_survivor_selection(config):
     if 'survivor_selection_method' not in config:
@@ -315,15 +374,6 @@ def read_survivor_selection(config):
     else:
         raise ValueError("Invalid survivor selection method specified.")
 
-
-
-
-
-
-
-
-
-
 def read_problem(config):
     if config['problem_type'] == 'string_matching':
         if 'target_string' not in config:
@@ -345,6 +395,7 @@ def read_problem(config):
             raise ValueError("Invalid problem index")
         
         initial_board = sudoku_problems[int(chosen_problem)]
+        config['fixed_positions'] = initial_board
         return SudokuProblem(initial_board)
     
     elif config['problem_type'] == 'bin_packing':
@@ -363,9 +414,6 @@ def read_problem(config):
     else:
         raise ValueError("Invalid problem type")
 
-
-
-
 def read_config(config):
     if "problem_type" not in config:
         problem_type = input("Enter the problem type (1: String Matching, 2: Sudoku, 3: Bin Packing): ")
@@ -383,7 +431,8 @@ def read_config(config):
     config['fitness_function'] = read_fitness_function(config)
     config['parent_selection'] = read_parent_selection(config)
     config['crossover_operator'] = read_crossover(config)
-    config['mutation_operator'] = read_mutation(config)
+    config['mutation_operator'] = read_mutation_operator(config)
+    config['mutation_strategy'] = read_mutation_strategy(config)
     config['survivor_selection'] = read_survivor_selection(config)
     config['data_collector'] = read_data_collector(config)
 
@@ -398,9 +447,6 @@ def read_config(config):
     config['initialize_population'] = lambda size: config['problem'].initialize_population(size)
 
     return config
-
-
-
 
 
 

@@ -70,16 +70,14 @@ class RWSRankingSelection(ParentSelectionMethod):
 
 
 class TournamentSelection(ParentSelectionMethod):
-    def __init__(self, scaling_strategy, tournament_size, probability_best=1.0):
-        self.scaling_strategy = scaling_strategy
+    def __init__(self, tournament_size, probability_best=1.0):
         self.tournament_size = tournament_size
         self.probability_best = probability_best
 
     def select(self, population, fitnesses, num_parents):
-        scaled_fitnesses = self.scaling_strategy.scale(fitnesses)
         selected_parents = []
         for _ in range(num_parents):
-            tournament = random.sample(list(zip(population, scaled_fitnesses)), self.tournament_size)
+            tournament = random.sample(list(zip(population, fitnesses)), self.tournament_size)
             tournament.sort(key=lambda x: x[1], reverse=True)
             if random.random() < self.probability_best:
                 selected_parents.append(tournament[0][0])

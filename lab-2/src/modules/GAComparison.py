@@ -64,13 +64,15 @@ class GAComparison:
         plt.ylabel('Standard Deviation')
         plt.legend()
         
-        # Plot runtimes
+        # Plot runtime per generation
         plt.subplot(3, 3, 5)
-        runtimes = [data['runtimes'][0] for data in self.results.values()]
-        plt.bar(self.results.keys(), runtimes, color=colors)
-        plt.title('Total Runtime')
-        plt.xlabel('Configuration')
+        for color, (config_name, data) in zip(colors, self.results.items()):
+            generations = range(len(data['runtimes']))
+            plt.plot(generations, data['runtimes'], color=color, label=config_name)
+        plt.title('Runtime per Generation')
+        plt.xlabel('Generation')
         plt.ylabel('Runtime (seconds)')
+        plt.legend()
         
         # Plot diversities
         plt.subplot(3, 3, 6)
