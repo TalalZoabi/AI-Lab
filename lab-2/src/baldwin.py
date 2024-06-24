@@ -2,18 +2,17 @@ import random
 import numpy as np
 import matplotlib.pyplot as plt
 
-
-
 class BaldwinExperiment:
-    def __init__(self, target_length, population_size=1000, generations=50, learning_attempts=1000, mutation_rate=0.01):
+    def __init__(self, target_length, population_size=1000, generations=50, learning_attempts=1000, mutation_rate=0.01, print_terminal=False):
         self.target_length = target_length
         self.population_size = population_size
         self.generations = generations
         self.learning_attempts = learning_attempts
         self.mutation_rate = mutation_rate
+        self.print_terminal = print_terminal
         self.target = self.generate_target()
         self.population = self.initialize_population()
-        self.data = {'incorrect': [], 'correct': [], 'learned': []}
+        self.data = {'incorrect': [], 'correct': [], 'learned': [], 'fitness': []}
 
     def generate_target(self):
         return [random.choice([0, 1, '?']) for _ in range(self.target_length)]
@@ -60,28 +59,34 @@ class BaldwinExperiment:
                 correct += 1
         return correct
 
-    def learning_phase(self, individual):
-        learned_bits = 0
-        for _ in range(self.learning_attempts):
+    def local_search(self, individual):
+        total_learnable_bits = individual.count('?')
+        correct_learned_bits = 0
+
+        for attempt in range(self.learning_attempts):
             candidate = individual[:]
-            bit_to_flip = random.randint(0, len(individual) - 1)
-            if candidate[bit_to_flip] == '?':
-                candidate[bit_to_flip] = 1 if self.target[bit_to_flip] == 1 else 0
-            else:
-                candidate[bit_to_flip] = 1 - candidate[bit_to_flip]
-            
-            if self.fitness(candidate) > self.fitness(individual):
-                individual = candidate
-                learned_bits += 1
-        return individual, learned_bits
+            for i in range(self.target_length):
+                if candidate[i] == '?':
+                    candidate[i] = random.choice([0, 1])
+
+            fitness_value = self.fitness(candidate)
+            if fitness_value == self.target_length:
+                unused_attempts = self.learning_attempts - attempt
+                correct_learned_bits = sum(1 for i in range(self.target_length) if candidate[i] == self.target[i] and self.target[i] != '?')
+                return candidate, unused_attempts, correct_learned_bits, total_learnable_bits
+
+        correct_learned_bits = sum(1 for i in range(self.target_length) if individual[i] == self.target[i] and self.target[i] != '?')
+        return individual, 0, correct_learned_bits, total_learnable_bits
+
+    def fitness_with_learning(self, individual):
+        _, unused_attempts, correct_learned_bits, total_learnable_bits = self.local_search(individual)
+        fitness = 1 + (19 * unused_attempts / self.learning_attempts)
+        return fitness, correct_learned_bits, total_learnable_bits
 
     def mutate(self, individual):
         for i in range(self.target_length):
             if random.random() < self.mutation_rate:
-                if self.target[i] == '?':
-                    individual[i] = 1 if individual[i] == 0 else 0
-                else:
-                    individual[i] = '?' if individual[i] == self.target[i] else self.target[i]
+                individual[i] = random.choice([0, 1, '?'])  # Flip bit to 0, 1, or ?
         return individual
 
     def crossover(self, parent1, parent2):
@@ -90,22 +95,28 @@ class BaldwinExperiment:
         child2 = parent2[:crossover_point] + parent1[crossover_point:]
         return child1, child2
 
-    def selection(self, population):
-        fitnesses = [self.fitness(ind) for ind in population]
+    def selection(self, population, fitnesses):
         selected = random.choices(population, weights=fitnesses, k=self.population_size)
         return selected
 
     def run_experiment(self, with_learning=True):
         for generation in range(self.generations):
             new_population = []
-            total_learned_bits = 0
+            fitnesses = []
+            total_correct_learned_bits = 0
+            total_learnable_bits = 0
+
             for individual in self.population:
                 if with_learning:
-                    individual, learned_bits = self.learning_phase(individual)
-                    total_learned_bits += learned_bits
+                    fitness, correct_learned_bits, learnable_bits = self.fitness_with_learning(individual)
+                    total_correct_learned_bits += correct_learned_bits
+                    total_learnable_bits += learnable_bits
+                else:
+                    fitness = self.fitness(individual)
+                fitnesses.append(fitness)
                 new_population.append(individual)
 
-            self.population = self.selection(new_population)
+            self.population = self.selection(new_population, fitnesses)
             offspring = []
             for i in range(0, self.population_size, 2):
                 parent1, parent2 = self.population[i], self.population[(i + 1) % self.population_size]
@@ -114,10 +125,11 @@ class BaldwinExperiment:
                 offspring.append(self.mutate(child2))
 
             self.population = offspring[:self.population_size]
-            self.collect_data(generation, total_learned_bits)
-            self.print_generation_stats(generation)
+            self.collect_data(generation, total_correct_learned_bits, total_learnable_bits, fitnesses)
+            if self.print_terminal:
+                self.print_generation_stats(generation)
 
-    def collect_data(self, generation, total_learned_bits):
+    def collect_data(self, generation, total_correct_learned_bits, total_learnable_bits, fitnesses):
         incorrect_positions = 0
         correct_positions = 0
         for individual in self.population:
@@ -130,84 +142,87 @@ class BaldwinExperiment:
                     incorrect_positions += 1
 
         total_positions = self.population_size * self.target_length
-        learned_bits_percentage = (total_learned_bits / (self.population_size * self.learning_attempts)) * 100
         self.data['incorrect'].append((incorrect_positions / total_positions) * 100)
         self.data['correct'].append((correct_positions / total_positions) * 100)
+        if total_learnable_bits > 0:
+            learned_bits_percentage = (total_correct_learned_bits / (total_learnable_bits * self.population_size)) * 100
+        else:
+            learned_bits_percentage = 0
         self.data['learned'].append(learned_bits_percentage)
+        self.data['fitness'].append(np.mean(fitnesses))
 
     def print_generation_stats(self, generation):
         print(f"Generation {generation}:")
         print(f"  Incorrect Positions (%): {self.data['incorrect'][-1]}")
         print(f"  Correct Positions (%): {self.data['correct'][-1]}")
         print(f"  Learned Bits (%): {self.data['learned'][-1]}")
-    
-    def plot_results(self):
+        print(f"  Average Fitness: {self.data['fitness'][-1]}")
+
+    def plot_results(self, title):
         generations = range(self.generations)
-        plt.figure(figsize=(12, 8))
+        fig, ax = plt.subplots(4, 1, figsize=(12, 20))
 
-        plt.plot(generations, self.data['incorrect'], label='Incorrect Positions (%)')
-        plt.plot(generations, self.data['correct'], label='Correct Positions (%)')
-        plt.plot(generations, self.data['learned'], label='Learned Bits (%)')
+        ax[0].plot(generations, self.data['incorrect'], label='Incorrect Positions (%)')
+        ax[0].set_xlabel('Generations')
+        ax[0].set_ylabel('Percentage')
+        ax[0].set_title('Incorrect Positions Over Generations')
+        ax[0].legend()
 
-        plt.xlabel('Generations')
-        plt.ylabel('Percentage')
-        plt.title('Baldwin Effect Experiment')
-        plt.legend()
+        ax[1].plot(generations, self.data['correct'], label='Correct Positions (%)')
+        ax[1].set_xlabel('Generations')
+        ax[1].set_ylabel('Percentage')
+        ax[1].set_title('Correct Positions Over Generations')
+        ax[1].legend()
+
+        ax[2].plot(generations, self.data['learned'], label='Learned Bits (%)')
+        ax[2].set_xlabel('Generations')
+        ax[2].set_ylabel('Percentage')
+        ax[2].set_title('Learned Bits Over Generations')
+        ax[2].legend()
+
+        ax[3].plot(generations, self.data['fitness'], label='Average Fitness')
+        ax[3].set_xlabel('Generations')
+        ax[3].set_ylabel('Fitness')
+        ax[3].set_title('Average Fitness Over Generations')
+        ax[3].legend()
+
+        plt.suptitle(title)
+        plt.tight_layout(rect=[0, 0, 1, 0.97])
+        plt.savefig(f"{title.replace(' ', '_')}.png")
         plt.show()
 
 
 
-
+# Run a sanity check to ensure everything works as expected
 def sanity_check():
-    target_length = 50
-    population_size = 1000
-    generations = 50
-    learning_attempts = 1000
-    mutation_rate = 0.01
-
-    # Initialize the experiment with the specified parameters
-    experiment = BaldwinExperiment(
-        target_length=target_length,
-        population_size=population_size,
-        generations=generations,
-        learning_attempts=learning_attempts,
-        mutation_rate=mutation_rate
-    )
-
-    print("Target Pattern:", experiment.target)
-    
-    # Run the experiment with learning phase
+    experiment = BaldwinExperiment(target_length=20, population_size=1000, generations=50, learning_attempts=1000, mutation_rate=0.05, print_terminal=True)
     print("Running experiment with learning phase...")
     experiment.run_experiment(with_learning=True)
-    experiment.plot_results()
-
-    # Reset the data and population for the experiment without learning phase
-    experiment.data = {'incorrect': [], 'correct': [], 'learned': []}
-    experiment.population = experiment.initialize_population()
-
-    # Run the experiment without learning phase
-    print("Running experiment without learning phase...")
-    experiment.run_experiment(with_learning=False)
-    experiment.plot_results()
+    experiment.plot_results("Results with Learning")
 
     # Print final results for verification
     print("\nFinal Results with Learning Phase:")
     print("Average Incorrect Positions:", np.mean(experiment.data['incorrect']))
     print("Average Correct Positions:", np.mean(experiment.data['correct']))
     print("Average Learned Bits:", np.mean(experiment.data['learned']))
+    print("Average Fitness:", np.mean(experiment.data['fitness']))
 
-    # Reset the data for the experiment without learning phase
-    experiment.data = {'incorrect': [], 'correct': [], 'learned': []}
+
+
+
+    # Reset the experiment for the run without learning
+    experiment.data = {'incorrect': [], 'correct': [], 'learned': [], 'fitness': []}
     experiment.population = experiment.initialize_population()
+
+    print("Running experiment without learning phase...")
     experiment.run_experiment(with_learning=False)
+    experiment.plot_results("Results without Learning")
 
     print("\nFinal Results without Learning Phase:")
     print("Average Incorrect Positions:", np.mean(experiment.data['incorrect']))
     print("Average Correct Positions:", np.mean(experiment.data['correct']))
     print("Average Learned Bits:", np.mean(experiment.data['learned']))
+    print("Average Fitness:", np.mean(experiment.data['fitness']))
 
 # Run the sanity check
 sanity_check()
-
-
-
