@@ -2,8 +2,10 @@ import random
 import numpy as np
 import matplotlib.pyplot as plt
 
+
+
 class BaldwinExperiment:
-    def __init__(self, target_length, population_size=1000, generations=100, learning_attempts=1000, mutation_rate=0.01):
+    def __init__(self, target_length, population_size=1000, generations=50, learning_attempts=1000, mutation_rate=0.01):
         self.target_length = target_length
         self.population_size = population_size
         self.generations = generations
@@ -19,14 +21,37 @@ class BaldwinExperiment:
     def initialize_population(self):
         population = []
         for _ in range(self.population_size):
-            individual = []
-            for i in range(self.target_length):
-                if self.target[i] == '?':
-                    individual.append(random.choice([0, 1]))
-                else:
-                    individual.append(random.choice(['?', self.target[i]]))
+            individual = self.create_individual()
             population.append(individual)
         return population
+
+    def create_individual(self):
+        individual = ['?'] * self.target_length
+        indices = list(range(self.target_length))
+        random.shuffle(indices)
+
+        # Set 50% random bits
+        random_bits_indices = indices[:self.target_length // 2]
+        for idx in random_bits_indices:
+            individual[idx] = random.choice([0, 1])
+
+        # Set 25% correct bits
+        correct_bits_indices = indices[self.target_length // 2:self.target_length // 2 + self.target_length // 4]
+        for idx in correct_bits_indices:
+            if self.target[idx] != '?':
+                individual[idx] = self.target[idx]
+            else:
+                individual[idx] = random.choice([0, 1])
+
+        # Set 25% incorrect bits
+        incorrect_bits_indices = indices[self.target_length // 2 + self.target_length // 4:]
+        for idx in incorrect_bits_indices:
+            if self.target[idx] != '?':
+                individual[idx] = 1 - self.target[idx]
+            else:
+                individual[idx] = random.choice([0, 1])
+
+        return individual
 
     def fitness(self, individual):
         correct = 0
@@ -39,7 +64,7 @@ class BaldwinExperiment:
         learned_bits = 0
         for _ in range(self.learning_attempts):
             candidate = individual[:]
-            bit_to_flip = random.randint(0, self.target_length - 1)
+            bit_to_flip = random.randint(0, len(individual) - 1)
             if candidate[bit_to_flip] == '?':
                 candidate[bit_to_flip] = 1 if self.target[bit_to_flip] == 1 else 0
             else:
@@ -90,6 +115,7 @@ class BaldwinExperiment:
 
             self.population = offspring[:self.population_size]
             self.collect_data(generation, total_learned_bits)
+            self.print_generation_stats(generation)
 
     def collect_data(self, generation, total_learned_bits):
         incorrect_positions = 0
@@ -109,6 +135,12 @@ class BaldwinExperiment:
         self.data['correct'].append((correct_positions / total_positions) * 100)
         self.data['learned'].append(learned_bits_percentage)
 
+    def print_generation_stats(self, generation):
+        print(f"Generation {generation}:")
+        print(f"  Incorrect Positions (%): {self.data['incorrect'][-1]}")
+        print(f"  Correct Positions (%): {self.data['correct'][-1]}")
+        print(f"  Learned Bits (%): {self.data['learned'][-1]}")
+    
     def plot_results(self):
         generations = range(self.generations)
         plt.figure(figsize=(12, 8))
@@ -122,6 +154,7 @@ class BaldwinExperiment:
         plt.title('Baldwin Effect Experiment')
         plt.legend()
         plt.show()
+
 
 
 
@@ -175,7 +208,6 @@ def sanity_check():
 
 # Run the sanity check
 sanity_check()
-
 
 
 
